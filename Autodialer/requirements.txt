@@ -1,0 +1,5 @@
+langchain==1.0.5
+langchain-google-genai==3.0.1
+twilio==9.8.5
+dotenv==0.9.9
+streamlit==1.51.0

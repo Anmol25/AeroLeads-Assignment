@@ -1,0 +1,8 @@
+.env
+.venv
+__pycache__/
+*.pyc
+
+# chrome driver and profile data
+chromedriver-linux64/
+selenium_profile/
