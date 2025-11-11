@@ -208,4 +208,5 @@ class LinkedInScapper:
             results.append(self.scrape_profile(link))
 
         df = self.results_to_dataframe_and_csv(results)
+        self.driver.quit()
         return df
