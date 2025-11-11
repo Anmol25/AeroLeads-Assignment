@@ -1,3 +1,31 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+.venv/
+venv/
+env/
+ENV/
+
+# Env and secrets
+.env
+
+# Streamlit cache (optional)
+.streamlit/
+
+# Selenium artifacts
+selenium_profile/
+
+# Output data
+scraped_profiles/
+
+# OS/editor noise
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
 .env
 .venv
 __pycache__/
