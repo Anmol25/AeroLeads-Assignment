@@ -1,4 +1,5 @@
 import time
+import json
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.chrome.options import Options
@@ -7,6 +8,8 @@ from selenium.common.exceptions import NoSuchElementException, ElementClickInter
 from typing import List
 from dotenv import load_dotenv
 import os
+from pathlib import Path
+import pandas as pd
 
 load_dotenv()
 
@@ -68,103 +71,6 @@ class LinkedInScapper:
         else:
             return False
 
-    def scrape_experience(self, link):
-        """Scrape Experience by navigating to experience page."""
-        self.driver.get(link + "details/experience/")
-        time.sleep(3)
-        card = self.driver.find_element(
-            By.CSS_SELECTOR, "section.artdeco-card.pb3")
-        return "Processing Experience section..."
-
-    def scrape_education(self, link):
-        """Scrape Education by navigating to education page."""
-        self.driver.get(link + "details/education/")
-        time.sleep(3)
-        card = self.driver.find_element(
-            By.CSS_SELECTOR, "section.artdeco-card.pb3")
-        return "Processing Education section..."
-
-    def scrape_certifications(self, link):
-        """Scrape Certifications by navigating to certifications page."""
-        self.driver.get(link + "details/certifications/")
-        time.sleep(3)
-        card = self.driver.find_element(
-            By.CSS_SELECTOR, "section.artdeco-card.pb3")
-        return "Processing Licenses & certifications section..."
-
-    def scrape_projects(self, link):
-        """Scrape Projects by navigating to projects page."""
-        self.driver.get(link + "details/projects/")
-        time.sleep(3)
-        card = self.driver.find_element(
-            By.CSS_SELECTOR, "section.artdeco-card.pb3")
-        return "Processing Projects section..."
-
-    def scrape_skills(self, link):
-        """Scrape Skills by navigating to skills page."""
-        self.driver.get(link + "details/skills/")
-        time.sleep(3)
-        card = self.driver.find_element(
-            By.CSS_SELECTOR, "section.artdeco-card.pb3")
-        skills = card.find_elements(
-            By.CSS_SELECTOR, "div.display-flex.align-items-center.mr1.hoverable-link-text.t-bold span[aria-hidden='true']")
-        skill_list = [skill.text for skill in skills if skill.text.strip()]
-
-        return skill_list
-
-    def scrape_publications(self, link):
-        """Scrape Publications by navigating to publications page."""
-        self.driver.get(link + "details/publications/")
-        time.sleep(3)
-        card = self.driver.find_element(
-            By.CSS_SELECTOR, "section.artdeco-card.pb3")
-        return "Processing Publications section..."
-
-    def scrape_courses(self, link):
-        """Scrape Courses by navigating to courses page."""
-        self.driver.get(link + "details/courses/")
-        time.sleep(3)
-        card = self.driver.find_element(
-            By.CSS_SELECTOR, "section.artdeco-card.pb3")
-        return "Processing Courses section..."
-
-    def scrape_awards(self, link):
-        """Scrape Honors & awards by navigating to honors & awards page."""
-        self.driver.get(link + "details/honors/")
-        time.sleep(3)
-        card = self.driver.find_element(
-            By.CSS_SELECTOR, "section.artdeco-card.pb3")
-        return "Processing Honors & awards section..."
-
-    def scrape_languages(self, link):
-        """Scrape Languages by navigating to languages page."""
-        self.driver.get(link + "details/languages/")
-        time.sleep(3)
-        card = self.driver.find_element(
-            By.CSS_SELECTOR, "section.artdeco-card.pb3")
-        return "Processing Languages section..."
-
-    def scrape_sections(self, columns, link):
-        """Scrape only those columns which are awailable in profile and allowed."""
-        switch = {
-            "Experience": self.scrape_experience,
-            "Education": self.scrape_education,
-            "Licenses & certifications": self.scrape_certifications,
-            "Projects": self.scrape_projects,
-            "Skills": self.scrape_skills,
-            "Publications": self.scrape_publications,
-            "Courses": self.scrape_courses,
-            "Honors & awards": self.scrape_awards,
-            "Languages": self.scrape_languages
-        }
-        results = {}
-
-        for column in columns:
-            if column in self.allowed_columns and column in switch:
-                results[column] = switch[column](link)
-
-        return results
-
     def scrape_user_info(self, cards):
         """Scrape User Info and about section from the profile."""
         # Scrape User Info
@@ -175,9 +81,6 @@ class LinkedInScapper:
             By.CSS_SELECTOR, "span.text-body-small.inline.t-black--light.break-words").text
         company = cards[0].find_elements(
             By.CSS_SELECTOR, "ul li span.t-black")[0].text
-        education = cards[0].find_elements(
-            By.CSS_SELECTOR, "ul li span.t-black")[1].text
-        # Scrape About Section
         about_elem = cards[1].find_element(
             By.CSS_SELECTOR, "h2.pvs-header__title span[aria-hidden='true']")
         about_text = about_elem.text.strip()
@@ -193,40 +96,106 @@ class LinkedInScapper:
             "Name": name,
             "Headline": headline,
             "Company": company,
-            "Education": education,
+
             "Location": location,
             "About": about_body
         }
 
         return profile_data
 
+    def scrape_sections(self, cards):
+        """Scrape various sections from the profile safely, avoiding missing element errors."""
+        final_dict = {}
+
+        for card in cards:
+            # Scrape heading
+            try:
+                heading_el = card.find_element(
+                    By.CSS_SELECTOR, "h2.pvs-header__title span[aria-hidden='true']")
+                heading = heading_el.text.strip()
+                if heading not in self.allowed_columns:
+                    continue  # skip unwanted sections
+            except NoSuchElementException:
+                heading = "Unknown Section"
+                continue  # fallback name if heading missing
+            # Scrape items under the heading
+            try:
+                items = card.find_elements(By.TAG_NAME, "li")
+            except NoSuchElementException:
+                items = []
+
+            item_list = []
+            for id, item in enumerate(items):
+                try:
+                    text = item.text.strip()
+                    if text:  # optional: skip empty ones
+                        item_list.append({"id": id, "item": text})
+                except Exception as e:
+                    print(f"Skipping item due to error: {e}")
+                    continue
+
+            final_dict[heading] = item_list
+
+        return final_dict
+
     def scrape_profile(self, link):
         """Scrape a single LinkedIn profile."""
         self.driver.get(link)
-        time.sleep(1)
-        columns = []
-        elements = self.driver.find_elements(
-            By.CSS_SELECTOR, "h2.pvs-header__title span[aria-hidden='true']")
-        for i, element in enumerate(elements):
-            print(f"Element no. {i}")
-            text = self.driver.execute_script(
-                "return arguments[0].textContent;", element).strip()
-            columns.append(text)
-        print("columns found on the profile:")
-        for column in columns:
-            print(column)
-        time.sleep(1)
+        time.sleep(3)
         cards = self.driver.find_elements(By.CLASS_NAME, "artdeco-card")
         profile_data = self.scrape_user_info(cards[:2])
         sections_data = self.scrape_sections(
-            columns=columns, link=self.driver.current_url)
+            cards=cards[2:])  # pass remaining cards for sections
         final_dict = profile_data | sections_data
         return final_dict
+
+    def results_to_dataframe_and_csv(self, results, csv_path: str = "scraped_profiles/linkedin_data.csv") -> pd.DataFrame:
+        """Convert scraped results to a pandas DataFrame and persist to CSV."""
+        # Normalize input to a list of records
+        records = results if isinstance(results, list) else [results]
+
+        # Convert nested structures to JSON strings for stable CSV columns
+        normalized_records = []
+        for rec in records:
+            safe_rec = {}
+            for k, v in rec.items():
+                if isinstance(v, (dict, list)):
+                    try:
+                        safe_rec[k] = json.dumps(v, ensure_ascii=False)
+                    except Exception:
+                        safe_rec[k] = str(v)
+                else:
+                    safe_rec[k] = v
+            normalized_records.append(safe_rec)
+
+        df = pd.DataFrame(normalized_records)
+
+        # Ensure target directory exists
+        csv_file = Path(csv_path)
+        csv_file.parent.mkdir(parents=True, exist_ok=True)
+
+        # Write or append accordingly with column alignment when appending
+        if csv_file.exists():
+            try:
+                existing_cols = pd.read_csv(csv_file, nrows=0).columns.tolist()
+                # Ensure all existing columns are present; drop extras to keep consistency
+                for col in existing_cols:
+                    if col not in df.columns:
+                        df[col] = None
+                df = df.reindex(columns=existing_cols)
+            except Exception:
+                # If header cannot be read, fall back to appending as-is without header
+                pass
+            df.to_csv(csv_file, mode="a", index=False, header=False)
+        else:
+            df.to_csv(csv_file, index=False)
+
+        return df
 
     def scrape(self, links: List[str]):
         """Main function to scrape multiple LinkedIn profiles."""
         self.driver.get("https://www.linkedin.com/login")
-        time.sleep(1)
+        time.sleep(3)
         print(self.driver.title)
         # Check if already logged in
         if self.driver.title == "LinkedIn Login, Sign in | LinkedIn":
@@ -237,4 +206,6 @@ class LinkedInScapper:
         results = []
         for link in links:
             results.append(self.scrape_profile(link))
-        return results
+
+        df = self.results_to_dataframe_and_csv(results)
+        return df
